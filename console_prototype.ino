@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <pgmspace.h>
+#include <map>
 
 #define EEPROM_SIZE 512
 #define WIFI_SSID_ADDR 0
@@ -50,10 +51,14 @@ char loginPassword[32];
 
 bool loggedIn = false;
 
+typedef void (*CommandFunction)();
+std::map<String, CommandFunction> cmd;
+
 void setup() {
   Serial.begin(115200);
   EEPROM.begin(EEPROM_SIZE);
 
+  // Wczytaj ustawienia z EEPROM
   readEEPROM(WIFI_SSID_ADDR, wifiSSID, sizeof(wifiSSID));
   readEEPROM(WIFI_PASS_ADDR, wifiPass, sizeof(wifiPass));
   readEEPROM(PWD_ADDR, loginPassword, sizeof(loginPassword));
@@ -63,6 +68,15 @@ void setup() {
   }
 
   setupSerial();
+
+  cmd["wifi_set"] = handleWiFiSet;
+  cmd["wifi_status"] = handleWiFiStatus;
+  cmd["pwd_set"] = handlePwdSet;
+  cmd["pwd_change"] = handlePwdChange;
+  cmd["reboot"] = handleReboot;
+  cmd["exit"] = handleExit;
+  cmd["erase"] = handleErase;
+  cmd["help"] = handleHelp;
 }
 
 void loop() {
@@ -71,22 +85,9 @@ void loop() {
     command.trim();
 
     if (loggedIn) {
-      if (command == "wifi_set") {
-        handleWiFiSet();
-      } else if (command == "wifi_status") {
-        handleWiFiStatus();
-      } else if (command == "pwd_set") {
-        handlePwdSet();
-      } else if (command == "pwd_change") {
-        handlePwdChange();
-      } else if (command == "reboot") {
-        handleReboot();
-      } else if (command == "exit") {
-        handleExit();
-      } else if (command == "erase") {
-        handleErase();
-      } else if (command == "help") {
-        handleHelp();
+      auto it = cmd.find(command);
+      if (it != cmd.end()) {
+        it->second();
       } else {
         Serial.println(FPSTR(UNKNOWN_CMD_MSG));
       }
